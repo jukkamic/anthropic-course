@@ -99,8 +99,6 @@ class ToolManager:
                     tool_use_id,
                     json.dumps({"error": error_message}),
                     "error"
-                    if tool_output and tool_output.isError
-                    else "success",
                 )
 
             tool_result_blocks.append(tool_result_part)
