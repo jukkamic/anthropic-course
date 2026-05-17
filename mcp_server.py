@@ -1,60 +1,75 @@
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
+import json
 
-mcp = FastMCP("DocumentMCP", log_level="ERROR")
+mcp = FastMCP("CustomerMCP", log_level="ERROR")
 
-
-docs = {
-    "deposition.md": "This deposition covers the testimony of Angela Smith, P.E.",
-    "report.pdf": "The report details the state of a 20m condenser tower.",
-    "financials.docx": "These financials outline the project's budget and expenditures.",
-    "outlook.pdf": "This document presents the projected future performance of the system.",
-    "plan.md": "The plan outlines the steps for the project's implementation.",
-    "spec.txt": "These specifications define the technical requirements for the equipment.",
-}
-
-# TODO: Write a tool to read a doc
-# TODO: Write a tool to edit a doc
-# TODO: Write a resource to return all doc id's
-# TODO: Write a resource to return the contents of a particular doc
-# TODO: Write a prompt to rewrite a doc in markdown format
-# TODO: Write a prompt to summarize a doc
-
+# Mock database
+customers = {"C-123": {"name": "Alice", "verified": True}}
+orders = {"O-999": {"customer_id": "C-123", "amount": 450.00, "status": "delivered"}}
 
 from pydantic import Field
 from mcp.server.fastmcp.prompts import base
 
 
-@mcp.tool(
-    name="read_doc_contents",
-    description="Read the contents of a document and return it as a string.",
-)
-def read_document(
-    doc_id: str = Field(description="Id of the document to read"),
-):
-    if doc_id not in docs:
-        raise ValueError(f"Doc with id {doc_id} not found")
-
-    return docs[doc_id]
-
+docs = {}
 
 @mcp.tool(
-    name="edit_document",
-    description="Edit a document by replacing a string in the documents content with a new string",
+    name="get_customer",
+    description="""Retrieves customer verification status. 
+    MUST be used FIRST when a customer requests account changes, refunds, or order details.
+    Input should be the exact customer ID (e.g., C-123). Do not use this for order numbers."""
 )
-def edit_document(
-    doc_id: str = Field(description="Id of the document that will be edited"),
-    old_str: str = Field(
-        description="The text to replace. Must match exactly, including whitespace"
-    ),
-    new_str: str = Field(
-        description="The new text to insert in place of the old text"
-    ),
+def get_customer(customer_id: str = Field(description="The customer ID, starting with C-")):
+    if customer_id not in customers:
+        return json.dumps({
+            "errorCategory": "validation",
+            "isRetryable": True,
+            "message": f"Customer {customer_id} not found. Please ask the user to verify their ID."
+        })
+    return json.dumps(customers[customer_id])
+
+@mcp.tool(
+    name="lookup_order",
+    description="""Retrieves order details (items, cost, status).
+    BOUNDARY: Do not use this until you have successfully verified the user with get_customer.
+    Input must be an order ID (e.g., O-999)."""
+)
+def lookup_order(order_id: str = Field(description="The order ID, starting with O-")):
+    if order_id not in orders:
+         return json.dumps({
+            "errorCategory": "validation",
+            "isRetryable": True,
+            "message": f"Order {order_id} not found."
+        })
+    return json.dumps(orders[order_id])
+
+@mcp.tool(
+    name="process_refund",
+    description="Processes a refund for a specific order. Requires prior verification via get_customer."
+)
+def process_refund(
+    order_id: str = Field(description="The order ID to refund"),
+    amount: float = Field(description="The amount to refund in USD")
 ):
-    if doc_id not in docs:
-        raise ValueError(f"Doc with id {doc_id} not found")
+    # Programmatic Interception: The Business Rule
+    if amount > 500.0:
+        # Returning a structured error with isRetryable: false forces the agent 
+        # to realize it cannot brute-force the tool and must escalate.
+        return json.dumps({
+            "errorCategory": "permission",
+            "isRetryable": False,
+            "message": f"Refunds over $500 require human authorization. Amount requested: ${amount}. Initiate escalation workflow."
+        })
+    
+    if order_id not in orders:
+        return json.dumps({
+            "errorCategory": "validation",
+            "isRetryable": True,
+            "message": "Invalid order ID."
+        })
 
-    docs[doc_id] = docs[doc_id].replace(old_str, new_str)
-
+    return json.dumps({"status": "success", "refunded_amount": amount, "order": order_id})
 
 @mcp.resource("docs://documents", mime_type="application/json")
 def list_docs() -> list[str]:
@@ -66,28 +81,6 @@ def fetch_doc(doc_id: str) -> str:
     if doc_id not in docs:
         raise ValueError(f"Doc with id {doc_id} not found")
     return docs[doc_id]
-
-
-@mcp.prompt(
-    name="format",
-    description="Rewrites the contents of the document in Markdown format.",
-)
-def format_document(
-    doc_id: str = Field(description="Id of the document to format"),
-) -> list[base.Message]:
-    prompt = f"""
-    Your goal is to reformat a document to be written with markdown syntax.
-
-    The id of the document you need to reformat is:
-    <document_id>
-    {doc_id}
-    </document_id>
-
-    Add in headers, bullet points, tables, etc as necessary. Feel free to add in extra text, but don't change the meaning of the report.
-    Use the 'edit_document' tool to edit the document. After the document has been edited, respond with the final version of the doc. Don't explain your changes.
-    """
-
-    return [base.UserMessage(prompt)]
 
 
 if __name__ == "__main__":
