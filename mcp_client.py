@@ -83,6 +83,10 @@ class MCPClient:
         result = await self.session().get_prompt(prompt_name, args)
         return result.messages
 
+    async def list_resources(self) -> list[types.Resource]:
+        result = await self.session().list_resources()
+        return result.resources
+    
     async def read_resource(self, uri: str) -> Any:
         result = await self.session().read_resource(AnyUrl(uri))
         resource = result.contents[0]

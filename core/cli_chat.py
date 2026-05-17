@@ -21,11 +21,19 @@ class CliChat(Chat):
     async def list_prompts(self) -> list[Prompt]:
         return await self.customer_client.list_prompts()
 
-    async def list_docs_ids(self) -> list[str]:
-        return await self.customer_client.read_resource("docs://documents")
+    async def list_available_resources(self) -> list[str]:
+        """Dynamically fetch all available resources from all connected servers."""
+        available_uris = []
+        for client in self.clients.values():
+            try:
+                resources = await client.list_resources()
+                available_uris.extend([str(res.uri) for res in resources])
+            except Exception as e:
+                print(f"Warning: Could not list resources for a client: {e}")
+        return available_uris
 
     async def get_doc_content(self, doc_id: str) -> str:
-        return await self.customer_client.read_resource(f"docs://documents/{doc_id}")
+        return await self.customer_client.read_resource(f"{doc_id}")
 
     async def get_prompt(
         self, command: str, doc_id: str
@@ -35,7 +43,7 @@ class CliChat(Chat):
     async def _extract_resources(self, query: str) -> str:
         mentions = [word[1:] for word in query.split() if word.startswith("@")]
 
-        doc_ids = await self.list_docs_ids()
+        doc_ids = await self.list_available_resources()
         mentioned_docs: list[Tuple[str, str]] = []
 
         for doc_id in doc_ids:

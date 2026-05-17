@@ -182,7 +182,7 @@ class CliApp:
 
     async def refresh_resources(self):
         try:
-            self.resources = await self.agent.list_docs_ids()
+            self.resources = await self.agent.list_available_resources()
             self.completer.update_resources(self.resources)
         except Exception as e:
             print(f"Error refreshing resources: {e}")

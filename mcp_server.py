@@ -11,9 +11,6 @@ orders = {"O-999": {"customer_id": "C-123", "amount": 450.00, "status": "deliver
 from pydantic import Field
 from mcp.server.fastmcp.prompts import base
 
-
-docs = {}
-
 @mcp.tool(
     name="get_customer",
     description="""Retrieves customer verification status. 
@@ -71,17 +68,10 @@ def process_refund(
 
     return json.dumps({"status": "success", "refunded_amount": amount, "order": order_id})
 
-@mcp.resource("docs://documents", mime_type="application/json")
-def list_docs() -> list[str]:
-    return list(docs.keys())
-
-
-@mcp.resource("docs://documents/{doc_id}", mime_type="text/plain")
-def fetch_doc(doc_id: str) -> str:
-    if doc_id not in docs:
-        raise ValueError(f"Doc with id {doc_id} not found")
-    return docs[doc_id]
-
-
+@mcp.resource("test://dummy-resource", mime_type="text/plain")
+def get_test_resource() -> str:
+    """A hardcoded test resource to verify dynamic loading."""
+    return "This is a hardcoded test resource to verify the dynamic @ prompt works perfectly."
+    
 if __name__ == "__main__":
     mcp.run(transport="stdio")
