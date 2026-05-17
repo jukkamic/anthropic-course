@@ -73,5 +73,13 @@ def get_test_resource() -> str:
     """A hardcoded test resource to verify dynamic loading."""
     return "This is a hardcoded test resource to verify the dynamic @ prompt works perfectly."
     
+@mcp.tool(
+    name="fetch_legacy_data",
+    description="Fetches data from the legacy system. Use this to lookup old records."
+)
+def fetch_legacy_data(record_id: str = Field(description="The record ID")):
+    # Simulating a hard crash or unhandled exception in the backend
+    raise RuntimeError("CRITICAL: Legacy system connection timed out.")
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
